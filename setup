@@ -1,0 +1,41 @@
+######################################################################
+######################  setup redis-server  ##########################
+######################################################################
+# slave only
+$IP_MASTER=192.168.2.125
+
+apt-get update
+aptitude install -y ruby rubygems
+wget https://github.com/antirez/redis/archive/3.0.0-beta8.tar.gz
+tar xzf 3.0.0-beta8.tar.gz
+mv redis-3.0.0-beta8 /usr/local/redis
+cp /usr/local/redis/redis.conf /usr/local/redis/redis.conf.bak
+sed -i 's/daemonize no/daemonize yes/g' /usr/local/redis/redis.conf
+sed -i 's/pidfile \"\/var\/run\/redis.pid\"/pidfile \"\/usr\/local\/redis\/redis-server.pid\"/g' /usr/local/redis/redis.conf
+# slave only
+echo slaveof $IP_MASTER 6379 >> /usr/local/redis/redis.conf
+
+gem install redis
+rm 3.0.0-beta8.tar.gz
+cd /usr/local/redis/
+make
+
+######################################################################
+####################  setup redis-sentinel  ##########################
+######################################################################
+cp /usr/local/redis/sentinel.conf /usr/local/redis/sentinel.conf.bak
+cat >/usr/local/redis/sentinel.conf << EOF
+daemonize yes
+pidfile /usr/local/redis/redis-sentinel.pid
+loglevel notice
+logfile /usr/local/redis/redis-sentinel.log
+sentinel monitor mymaster 192.168.1.33 6379 2
+sentinel down-after-milliseconds mymaster 5000
+sentinel failover-timeout mymaster 60000
+sentinel parallel-syncs mymaster 1
+EOF
+
+cp service/redis-server /etc/init.d/redis-server
+cp service/redis-sentinel /etc/init.d/redis-sentinel
+chmod +x /etc/init.d/redis-server
+chmod +x /etc/init.d/redis-sentinel
